@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/recall/__init__.py
+src/recall/cli.py
+src/recall/embedder.py
+src/recall/store.py
+src/recall_cli.egg-info/PKG-INFO
+src/recall_cli.egg-info/SOURCES.txt
+src/recall_cli.egg-info/dependency_links.txt
+src/recall_cli.egg-info/entry_points.txt
+src/recall_cli.egg-info/requires.txt
+src/recall_cli.egg-info/top_level.txt
