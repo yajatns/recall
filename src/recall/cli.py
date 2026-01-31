@@ -22,7 +22,7 @@ def get_store() -> MemoryStore:
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version="0.1.0", package_name="recall-cli")
 def main():
     """🧠 recall - Local semantic memory search for your terminal."""
     pass
