@@ -1,8 +1,13 @@
 """Embedding module using sentence-transformers."""
 
+import os
 import numpy as np
 from typing import List, Optional
 from pathlib import Path
+
+# Suppress HuggingFace progress bars and verbose output
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 # Lazy load to speed up CLI startup
 _model = None
