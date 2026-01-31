@@ -13,6 +13,13 @@ def get_model():
     """Lazy load the sentence transformer model."""
     global _model
     if _model is None:
+        import logging
+        import warnings
+        
+        # Suppress verbose model loading output
+        logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+        warnings.filterwarnings("ignore", category=FutureWarning)
+        
         from sentence_transformers import SentenceTransformer
         
         # Use cache dir in ~/.recall
