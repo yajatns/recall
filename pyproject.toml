@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Yajat Singh", email = "yajat@example.com"}
+    {name = "Yajat Singh", email = "yajatns@gmail.com"}
 ]
 keywords = ["memory", "semantic-search", "cli", "local", "ai"]
 classifiers = [
@@ -30,6 +30,7 @@ dependencies = [
     "numpy>=1.24.0",
     "rich>=13.0",
     "pyyaml>=6.0",
+    "anthropic>=0.32.0",
 ]
 
 [project.optional-dependencies]
@@ -43,8 +44,8 @@ dev = [
 recall = "recall.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yajat/recall"
-Repository = "https://github.com/yajat/recall"
+Homepage = "https://github.com/yajatns/recall"
+Repository = "https://github.com/yajatns/recall"
 
 [tool.setuptools.packages.find]
 where = ["src"]

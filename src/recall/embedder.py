@@ -1,9 +1,10 @@
 """Embedding module using sentence-transformers."""
 
 import os
-import numpy as np
-from typing import List, Optional
 from pathlib import Path
+from typing import List
+
+import numpy as np
 
 # Suppress HuggingFace progress bars and verbose output
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -20,17 +21,17 @@ def get_model():
     if _model is None:
         import logging
         import warnings
-        
+
         # Suppress verbose model loading output
         logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
         warnings.filterwarnings("ignore", category=FutureWarning)
-        
+
         from sentence_transformers import SentenceTransformer
-        
+
         # Use cache dir in ~/.recall
         cache_dir = Path.home() / ".recall" / "models"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         _model = SentenceTransformer(_model_name, cache_folder=str(cache_dir))
     return _model
 
