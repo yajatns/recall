@@ -218,7 +218,7 @@ def stats():
 
 @main.command()
 @click.argument("question")
-@click.option("-m", "--model", default="claude-sonnet-4-20250514", help="Claude model to use")
+@click.option("-m", "--model", default="gpt-4o-mini", help="LLM model (e.g. gpt-4o, claude-sonnet-4-20250514, ollama/llama3)")
 @click.option("-l", "--limit", default=10, help="Max memories to include as context")
 def chat(question: str, model: str, limit: int):
     """Chat with Claude about your memories."""

@@ -1,6 +1,9 @@
+LICENSE
 README.md
 pyproject.toml
 src/recall/__init__.py
+src/recall/__main__.py
+src/recall/chat.py
 src/recall/cli.py
 src/recall/embedder.py
 src/recall/store.py

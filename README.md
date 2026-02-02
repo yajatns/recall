@@ -26,15 +26,20 @@ cd recall
 pip install -e .
 ```
 
-## Claude Chat Setup
+## Chat Setup (Any LLM)
 
-To use `recall chat`, set your Anthropic API key:
+`recall chat` works with 100+ LLM providers via [litellm](https://docs.litellm.ai/). Set the appropriate API key:
 
 ```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-```
+# OpenAI (default)
+export OPENAI_API_KEY="sk-..."
 
-Get your API key at https://console.anthropic.com/
+# Anthropic
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+# Ollama (no key needed - runs locally)
+ollama serve
+```
 
 ## Usage
 
@@ -59,8 +64,10 @@ recall search "Q1 plans" --limit 5
 recall chat "What were the key decisions from recent meetings?"
 recall chat "Summarize what I know about Python best practices"
 
-# Use a different model
-recall chat "What are my work preferences?" --model claude-opus-4-20250514
+# Use different models
+recall chat "What are my work preferences?" --model gpt-4o
+recall chat "Summarize my notes" --model claude-sonnet-4-20250514
+recall chat "Quick answer" --model ollama/llama3
 ```
 
 ### Other commands
@@ -101,7 +108,7 @@ recall delete 42
 ## Requirements
 
 - Python 3.10+
-- ANTHROPIC_API_KEY (for chat feature)
+- API key for your chosen provider (or Ollama for local models)
 
 ## License
 

@@ -1,6 +1,5 @@
-"""Claude-powered chat for recall memories."""
+"""LLM-powered chat for recall memories using litellm."""
 
-import os
 from typing import List
 
 from .store import Memory
@@ -9,20 +8,25 @@ from .store import Memory
 def chat_with_memories(
     question: str,
     memories: List[Memory],
-    model: str = "claude-sonnet-4-20250514",
+    model: str = "gpt-4o-mini",
 ) -> str:
-    """Send question to Claude with memory context."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY environment variable not set. "
-            "Get your API key at https://console.anthropic.com/"
-        )
-
+    """Send question to LLM with memory context.
+    
+    Supports any model via litellm:
+    - OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo
+    - Anthropic: claude-sonnet-4-20250514, claude-3-5-haiku-20241022
+    - Ollama: ollama/llama3, ollama/mistral
+    - And 100+ more providers
+    
+    Set the appropriate API key env var:
+    - OPENAI_API_KEY for OpenAI models
+    - ANTHROPIC_API_KEY for Claude models
+    - No key needed for Ollama (local)
+    """
     try:
-        import anthropic
+        import litellm
     except ImportError:
-        raise ImportError("anthropic package not installed. Run: pip install anthropic")
+        raise ImportError("litellm package not installed. Run: pip install litellm")
 
     # Build context from memories
     if memories:
@@ -55,13 +59,14 @@ Question: {question}
 Please let the user know that no matching memories were found and suggest they \
 add relevant information using `recall add`."""
 
-    client = anthropic.Anthropic(api_key=api_key)
-
-    response = client.messages.create(
+    # Use litellm for universal model support
+    response = litellm.completion(
         model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ],
         max_tokens=1024,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
     )
 
-    return response.content[0].text
+    return response.choices[0].message.content
