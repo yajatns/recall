@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -12,7 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from .config import get_config
+from .config import DEFAULT_CONFIG, get_config
 from .store import MemoryStore
 
 console = Console()
@@ -390,10 +391,12 @@ def stats():
 
 
 # Config command group
-@main.group()
-def config():
+@main.group(invoke_without_command=True)
+@click.pass_context
+def config(ctx):
     """View and manage configuration."""
-    pass
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(config_show)
 
 
 @config.command("show")
@@ -420,7 +423,7 @@ def config_show():
 def config_set(key: str, value: str):
     """Set a configuration value."""
     cfg = get_config()
-    valid_keys = ["model", "db_path", "search_limit", "editor"]
+    valid_keys = list(DEFAULT_CONFIG.keys())
 
     if key not in valid_keys:
         console.print(f"[red]Unknown setting: {key}[/]")
@@ -463,8 +466,8 @@ def backup(output: Optional[str], git: bool):
     else:
         backup_dir = Path.home() / ".recall" / "backups"
         backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = backup_dir / f"recall_backup_{timestamp}.json"
+        filename_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = backup_dir / f"recall_backup_{filename_timestamp}.json"
 
     # Write backup
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -478,6 +481,11 @@ def backup(output: Optional[str], git: bool):
 
     # Git commit if requested
     if git:
+        if not shutil.which("git"):
+            console.print("[red]Error: git is not installed[/]")
+            store.close()
+            raise SystemExit(1)
+
         backup_dir = output_path.parent
 
         # Initialize git repo if needed
@@ -488,8 +496,8 @@ def backup(output: Optional[str], git: bool):
 
         # Add and commit
         subprocess.run(["git", "add", output_path.name], cwd=backup_dir, capture_output=True)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        commit_msg = f"Backup: {len(data)} memories at {timestamp}"
+        commit_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        commit_msg = f"Backup: {len(data)} memories at {commit_timestamp}"
         result = subprocess.run(
             ["git", "commit", "-m", commit_msg],
             cwd=backup_dir,
@@ -512,7 +520,7 @@ def backup(output: Optional[str], git: bool):
 )
 @click.option("-l", "--limit", default=None, type=int, help="Max memories to include as context")
 def chat(question: str, model: Optional[str], limit: Optional[int]):
-    """Chat with Claude about your memories."""
+    """Chat with an LLM about your memories."""
     from .chat import chat_with_memories
 
     cfg = get_config()

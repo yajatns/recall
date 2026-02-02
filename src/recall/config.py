@@ -27,8 +27,13 @@ class Config:
         config = DEFAULT_CONFIG.copy()
         if self.config_path.exists():
             with open(self.config_path) as f:
-                file_config = yaml.safe_load(f) or {}
-                config.update(file_config)
+                try:
+                    file_config = yaml.safe_load(f) or {}
+                    config.update(file_config)
+                except yaml.YAMLError:
+                    import warnings
+
+                    warnings.warn(f"Failed to parse {self.config_path}, using defaults")
         return config
 
     def _save(self):
@@ -39,13 +44,19 @@ class Config:
 
     def get(self, key: str) -> Any:
         """Get a config value."""
-        return self._config.get(key, DEFAULT_CONFIG.get(key))
+        value = self._config.get(key)
+        return DEFAULT_CONFIG.get(key) if value is None else value
 
     def set(self, key: str, value: Any):
         """Set a config value and save."""
-        # Convert string values to appropriate types
+        # Convert string values to appropriate types.
+        # Only search_limit and db_path need conversion here because other settings
+        # (model, editor) are already strings when passed from CLI arguments.
         if key == "search_limit":
-            value = int(value)
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise ValueError("search_limit must be an integer") from None
         elif key == "db_path":
             value = str(value)
 

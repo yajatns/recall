@@ -193,11 +193,11 @@ class MemoryStore:
         if not memory:
             return None
 
-        new_content = content if content is not None else memory.content
+        new_content = content if content is not None and content.strip() else memory.content
         new_tags = tags if tags is not None else memory.tags
 
         # Re-compute embedding if content changed
-        if content is not None and content != memory.content:
+        if content is not None and content.strip() and content != memory.content:
             embedding = embed_text(new_content)
             self.conn.execute(
                 "UPDATE memories SET content = ?, tags = ?, embedding = ? WHERE id = ?",
