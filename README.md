@@ -70,6 +70,40 @@ recall chat "Summarize my notes" --model claude-sonnet-4-20250514
 recall chat "Quick answer" --model ollama/llama3
 ```
 
+### Edit memories
+
+```bash
+recall edit 5                        # Opens $EDITOR with memory content
+recall edit 5 --content "new text"   # Inline edit
+recall edit 5 --tags "new,tags"      # Update tags only
+```
+
+### Configuration
+
+```bash
+recall config                        # Alias for 'recall config show'
+recall config show                   # Show current config
+recall config set model gpt-4o       # Set default model
+recall config set db_path ~/.my-recall/recall.db
+recall config get model              # Get specific value
+```
+
+**Config file:** `~/.recall/config.yaml`
+
+**Supported settings:**
+- `model` - Default LLM model for chat (default: gpt-4o-mini)
+- `db_path` - Database location (default: ~/.recall/recall.db)
+- `search_limit` - Default search results (default: 10)
+- `editor` - Preferred editor for edit command
+
+### Backup
+
+```bash
+recall backup                        # Export to ~/.recall/backups/
+recall backup --output ./backup.json # Custom output path
+recall backup --git                  # Commit to git repo
+```
+
 ### Other commands
 
 ```bash
@@ -90,6 +124,14 @@ recall stats
 recall delete 42
 ```
 
+### Shell Completions
+
+```bash
+recall --install-completion bash     # Install for bash
+recall --install-completion zsh      # Install for zsh
+recall --install-completion fish     # Install for fish
+```
+
 ## How It Works
 
 1. Text is embedded using `all-MiniLM-L6-v2` (384-dim vectors)
@@ -102,7 +144,9 @@ recall delete 42
 ```
 ~/.recall/
 ├── recall.db      # SQLite database with embeddings
-└── models/        # Cached embedding model
+├── config.yaml    # Configuration file
+├── models/        # Cached embedding model
+└── backups/       # Backup directory (with optional git)
 ```
 
 ## Requirements

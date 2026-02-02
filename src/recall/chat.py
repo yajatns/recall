@@ -11,13 +11,13 @@ def chat_with_memories(
     model: str = "gpt-4o-mini",
 ) -> str:
     """Send question to LLM with memory context.
-    
+
     Supports any model via litellm:
     - OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo
     - Anthropic: claude-sonnet-4-20250514, claude-3-5-haiku-20241022
     - Ollama: ollama/llama3, ollama/mistral
     - And 100+ more providers
-    
+
     Set the appropriate API key env var:
     - OPENAI_API_KEY for OpenAI models
     - ANTHROPIC_API_KEY for Claude models

@@ -1,6 +1,10 @@
 """CLI interface for recall."""
 
 import json
+import os
+import shutil
+import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from .config import DEFAULT_CONFIG, get_config
 from .store import MemoryStore
 
 console = Console()
@@ -16,13 +21,130 @@ console = Console()
 
 def get_store() -> MemoryStore:
     """Get the memory store instance."""
-    return MemoryStore()
+    config = get_config()
+    return MemoryStore(db_path=config.db_path)
+
+
+SHELL_COMPLETIONS = {
+    "bash": """\
+_recall_completion() {
+    local IFS=$'\\n'
+    COMPREPLY=( $( env COMP_WORDS="${COMP_WORDS[*]}" \\
+                   COMP_CWORD=$COMP_CWORD \\
+                   _RECALL_COMPLETE=bash_complete $1 ) )
+    return 0
+}
+complete -o default -F _recall_completion recall
+""",
+    "zsh": """\
+#compdef recall
+
+_recall() {
+    local -a completions
+    local -a completions_with_descriptions
+    local -a response
+    (( ! $+commands[recall] )) && return 1
+
+    response=("${(@f)$(env COMP_WORDS="${words[*]}" COMP_CWORD=$((CURRENT-1)) _RECALL_COMPLETE=zsh_complete recall)}")
+
+    for key descr in ${(kv)response}; do
+        if [[ "$descr" == "_" ]]; then
+            completions+=("$key")
+        else
+            completions_with_descriptions+=("$key":"$descr")
+        fi
+    done
+
+    if [ -n "$completions_with_descriptions" ]; then
+        _describe -V unsorted completions_with_descriptions -U
+    fi
+
+    if [ -n "$completions" ]; then
+        compadd -U -V unsorted -a completions
+    fi
+}
+
+compdef _recall recall
+""",
+    "fish": """\
+function _recall_completion
+    set -l response (env _RECALL_COMPLETE=fish_complete COMP_WORDS=(commandline -cp) COMP_CWORD=(commandline -t) recall)
+
+    for completion in $response
+        set -l metadata (string split "," -- $completion)
+
+        if test (count $metadata) -eq 1
+            echo $metadata
+        else
+            echo -e $metadata[1]\\t$metadata[2]
+        end
+    end
+end
+
+complete -c recall -f -a "(_recall_completion)"
+""",
+}
+
+
+def install_completion(shell: str):
+    """Install shell completion for the specified shell."""
+    if shell not in SHELL_COMPLETIONS:
+        console.print(f"[red]Unknown shell: {shell}[/]")
+        console.print(f"Supported shells: {', '.join(SHELL_COMPLETIONS.keys())}")
+        return
+
+    script = SHELL_COMPLETIONS[shell]
+    home = Path.home()
+
+    if shell == "bash":
+        rc_file = home / ".bashrc"
+        completion_file = home / ".recall" / "completion.bash"
+    elif shell == "zsh":
+        rc_file = home / ".zshrc"
+        completion_file = home / ".recall" / "completion.zsh"
+    elif shell == "fish":
+        rc_file = home / ".config" / "fish" / "completions" / "recall.fish"
+        completion_file = rc_file  # Fish uses the completions directory directly
+
+    completion_file.parent.mkdir(parents=True, exist_ok=True)
+    completion_file.write_text(script)
+
+    if shell in ("bash", "zsh"):
+        source_line = f'source "{completion_file}"'
+        if rc_file.exists():
+            rc_content = rc_file.read_text()
+            if source_line not in rc_content:
+                with open(rc_file, "a") as f:
+                    f.write(f"\n# recall shell completion\n{source_line}\n")
+                console.print(f"[green]Added completion to {rc_file}[/]")
+            else:
+                console.print(f"[yellow]Completion already in {rc_file}[/]")
+        else:
+            with open(rc_file, "w") as f:
+                f.write(f"# recall shell completion\n{source_line}\n")
+            console.print(f"[green]Created {rc_file} with completion[/]")
+    else:
+        console.print(f"[green]Installed completion to {completion_file}[/]")
+
+    console.print("\n[bold]Restart your shell or run:[/]")
+    if shell == "fish":
+        console.print(f"  source {completion_file}")
+    else:
+        console.print(f"  source {rc_file}")
 
 
 @click.group()
 @click.version_option(version="0.1.0", package_name="recall-cli")
+@click.option(
+    "--install-completion",
+    type=click.Choice(["bash", "zsh", "fish"]),
+    help="Install shell completion for the specified shell",
+    is_eager=True,
+    expose_value=False,
+    callback=lambda ctx, param, value: (install_completion(value), ctx.exit()) if value else None,
+)
 def main():
-    """🧠 recall - Local semantic memory search for your terminal."""
+    """Local semantic memory search for your terminal."""
     pass
 
 
@@ -40,6 +162,58 @@ def add(content: str, tags: Optional[str]):
     console.print(f"[green]✓[/] Added memory #{memory.id}")
     if tag_list:
         console.print(f"  Tags: {', '.join(tag_list)}")
+    store.close()
+
+
+@main.command()
+@click.argument("memory_id", type=int)
+@click.option("-c", "--content", help="New content (inline edit)")
+@click.option("-t", "--tags", help="New tags (comma-separated)")
+def edit(memory_id: int, content: Optional[str], tags: Optional[str]):
+    """Edit an existing memory."""
+    store = get_store()
+    config = get_config()
+
+    # Fetch the memory first
+    memory = store.get(memory_id)
+    if not memory:
+        console.print(f"[red]Memory #{memory_id} not found[/]")
+        store.close()
+        return
+
+    new_content = content
+    new_tags = [t.strip() for t in tags.split(",")] if tags else None
+
+    # If no inline content, open in editor
+    if content is None and tags is None:
+        # Use configured editor, or $EDITOR, or click default
+        editor = config.editor or os.environ.get("EDITOR")
+        edited = click.edit(memory.content, editor=editor)
+
+        if edited is None:
+            console.print("[yellow]Edit cancelled[/]")
+            store.close()
+            return
+
+        new_content = edited.strip()
+        if new_content == memory.content:
+            console.print("[yellow]No changes made[/]")
+            store.close()
+            return
+
+    # Update the memory
+    with console.status("[bold green]Updating...[/]"):
+        updated = store.update(memory_id, content=new_content, tags=new_tags)
+
+    if updated:
+        console.print(f"[green]Updated memory #{memory_id}[/]")
+        if new_content and new_content != memory.content:
+            console.print("  [dim]Content updated (embedding recomputed)[/]")
+        if new_tags:
+            console.print(f"  Tags: {', '.join(new_tags)}")
+    else:
+        console.print(f"[red]Failed to update memory #{memory_id}[/]")
+
     store.close()
 
 
@@ -210,20 +384,148 @@ def stats():
             f"[bold]Memories:[/] {count}\n"
             f"[bold]Database:[/] {store.db_path}\n"
             f"[bold]Size:[/] {db_size / 1024:.1f} KB",
-            title="📊 Stats",
+            title="Stats",
         )
     )
     store.close()
 
 
+# Config command group
+@main.group(invoke_without_command=True)
+@click.pass_context
+def config(ctx):
+    """View and manage configuration."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(config_show)
+
+
+@config.command("show")
+def config_show():
+    """Show current configuration."""
+    cfg = get_config()
+    all_config = cfg.all()
+
+    table = Table(title="Configuration")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value")
+
+    for key, value in all_config.items():
+        display_value = str(value) if value is not None else "[dim]not set[/]"
+        table.add_row(key, display_value)
+
+    table.add_row("[dim]config file[/]", f"[dim]{cfg.config_path}[/]")
+    console.print(table)
+
+
+@config.command("set")
+@click.argument("key")
+@click.argument("value")
+def config_set(key: str, value: str):
+    """Set a configuration value."""
+    cfg = get_config()
+    valid_keys = list(DEFAULT_CONFIG.keys())
+
+    if key not in valid_keys:
+        console.print(f"[red]Unknown setting: {key}[/]")
+        console.print(f"Valid settings: {', '.join(valid_keys)}")
+        return
+
+    cfg.set(key, value)
+    console.print(f"[green]Set {key} = {value}[/]")
+
+
+@config.command("get")
+@click.argument("key")
+def config_get(key: str):
+    """Get a configuration value."""
+    cfg = get_config()
+    value = cfg.get(key)
+
+    if value is not None:
+        console.print(f"{key} = {value}")
+    else:
+        console.print(f"[yellow]{key} is not set[/]")
+
+
+@main.command()
+@click.option("-o", "--output", type=click.Path(), help="Output file path")
+@click.option("--git", is_flag=True, help="Commit backup to git repository")
+def backup(output: Optional[str], git: bool):
+    """Backup all memories to JSON file."""
+    store = get_store()
+    data = store.export_json()
+
+    if not data:
+        console.print("[yellow]No memories to backup[/]")
+        store.close()
+        return
+
+    # Determine output path
+    if output:
+        output_path = Path(output)
+    else:
+        backup_dir = Path.home() / ".recall" / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        filename_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = backup_dir / f"recall_backup_{filename_timestamp}.json"
+
+    # Write backup
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+    file_size = output_path.stat().st_size
+    console.print(f"[green]Backed up {len(data)} memories[/]")
+    console.print(f"  Location: {output_path}")
+    console.print(f"  Size: {file_size / 1024:.1f} KB")
+
+    # Git commit if requested
+    if git:
+        if not shutil.which("git"):
+            console.print("[red]Error: git is not installed[/]")
+            store.close()
+            raise SystemExit(1)
+
+        backup_dir = output_path.parent
+
+        # Initialize git repo if needed
+        git_dir = backup_dir / ".git"
+        if not git_dir.exists():
+            subprocess.run(["git", "init"], cwd=backup_dir, capture_output=True)
+            console.print(f"  [dim]Initialized git repo at {backup_dir}[/]")
+
+        # Add and commit
+        subprocess.run(["git", "add", output_path.name], cwd=backup_dir, capture_output=True)
+        commit_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        commit_msg = f"Backup: {len(data)} memories at {commit_timestamp}"
+        result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            cwd=backup_dir,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode == 0:
+            console.print("  [green]Committed to git[/]")
+        else:
+            console.print("  [yellow]Git commit skipped (no changes or error)[/]")
+
+    store.close()
+
+
 @main.command()
 @click.argument("question")
-@click.option("-m", "--model", default="gpt-4o-mini", help="LLM model (e.g. gpt-4o, claude-sonnet-4-20250514, ollama/llama3)")
-@click.option("-l", "--limit", default=10, help="Max memories to include as context")
-def chat(question: str, model: str, limit: int):
-    """Chat with Claude about your memories."""
+@click.option(
+    "-m", "--model", default=None, help="LLM model (e.g. gpt-4o, claude-sonnet-4-20250514)"
+)
+@click.option("-l", "--limit", default=None, type=int, help="Max memories to include as context")
+def chat(question: str, model: Optional[str], limit: Optional[int]):
+    """Chat with an LLM about your memories."""
     from .chat import chat_with_memories
 
+    cfg = get_config()
+    model = model or cfg.model
+    limit = limit or cfg.search_limit
     store = get_store()
 
     # Search for relevant memories

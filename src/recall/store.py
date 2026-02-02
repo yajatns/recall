@@ -164,6 +164,54 @@ class MemoryStore:
 
         return memories
 
+    def get(self, memory_id: int) -> Optional[Memory]:
+        """Get a memory by ID."""
+        cursor = self.conn.execute(
+            "SELECT id, content, tags, embedding, created_at FROM memories WHERE id = ?",
+            (memory_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        return Memory(
+            id=row[0],
+            content=row[1],
+            tags=json.loads(row[2]),
+            created_at=datetime.fromisoformat(row[4]),
+            embedding=np.frombuffer(row[3], dtype=np.float32) if row[3] else None,
+        )
+
+    def update(
+        self,
+        memory_id: int,
+        content: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> Optional[Memory]:
+        """Update a memory's content and/or tags. Re-computes embedding if content changed."""
+        memory = self.get(memory_id)
+        if not memory:
+            return None
+
+        new_content = content if content is not None and content.strip() else memory.content
+        new_tags = tags if tags is not None else memory.tags
+
+        # Re-compute embedding if content changed
+        if content is not None and content.strip() and content != memory.content:
+            embedding = embed_text(new_content)
+            self.conn.execute(
+                "UPDATE memories SET content = ?, tags = ?, embedding = ? WHERE id = ?",
+                (new_content, json.dumps(new_tags), embedding.tobytes(), memory_id),
+            )
+        else:
+            self.conn.execute(
+                "UPDATE memories SET content = ?, tags = ? WHERE id = ?",
+                (new_content, json.dumps(new_tags), memory_id),
+            )
+
+        self.conn.commit()
+        return self.get(memory_id)
+
     def delete(self, memory_id: int) -> bool:
         """Delete a memory by ID."""
         cursor = self.conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
