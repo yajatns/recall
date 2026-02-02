@@ -41,23 +41,23 @@ Get your API key at https://console.anthropic.com/
 ### Add memories
 
 ```bash
-recall add "The DPU regression agent uses Azure OpenAI gpt-4o"
-recall add "Yajat prefers tables and checklists" --tags work,preferences
+recall add "Python virtual environments keep dependencies isolated"
+recall add "Meeting notes: Q1 roadmap finalized, launch in March" --tags work,meetings
 ```
 
 ### Search semantically
 
 ```bash
-recall search "what model does the debug agent use"
-recall search "communication style" --limit 5
+recall search "how to manage python packages"
+recall search "Q1 plans" --limit 5
 ```
 
 ### Chat with Claude
 
 ```bash
 # Ask questions about your stored memories
-recall chat "What do I know about DPU debugging?"
-recall chat "Summarize my notes about project preferences"
+recall chat "What were the key decisions from recent meetings?"
+recall chat "Summarize what I know about Python best practices"
 
 # Use a different model
 recall chat "What are my work preferences?" --model claude-opus-4-20250514
